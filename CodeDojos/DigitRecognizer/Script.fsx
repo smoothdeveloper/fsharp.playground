@@ -87,13 +87,14 @@ let showImage (image: Image) =
 
 let displayData (data: byte[]) (n: int) =
     let rows = data.Length / n + (if data.Length % n > 0 then 1 else 0)
-    let image = new Bitmap(rows, n)
+    let image = new Bitmap(n, rows)
     let twoDimensionData = DigitRecognizer.batch data n |> Seq.zip [0..(rows)]
-    for (x, rowOfPixels) in twoDimensionData do
+    for (y, rowOfPixels) in twoDimensionData do
         let pixels = rowOfPixels |> Seq.zip [|0..n|]
-        pixels |> Seq.iter (fun (y, v) -> image.SetPixel(x, y, Color.FromArgb(v |> int, v |> int, v |> int)))
+        pixels |> Seq.iter (fun (x, v) -> image.SetPixel(x, y, Color.FromArgb(v |> int, v |> int, v |> int)))
     showImage image
 
 displayData [|(0|> byte)..(255|> byte)|] 10
 displayData oneRecord.Data 28
 
+trainingDataset.[5] |> Seq.take 10 |> Seq.map (fun d -> displayData d 28)
