@@ -13,25 +13,23 @@ let storageFolder = @"C:\home\work\codedojos\Dojo-Digits-Recognizer\Dojo"
 let trainingSampleCsvPath = Path.Combine(storageFolder, "trainingsample.csv")
 let validationCsvPath = Path.Combine(storageFolder, "validationsample.csv")
  
-let parseCsv (filePath: string) =
+let getCsvLines (filePath: string) =
     File.ReadLines(filePath)
-    |> (1 |> Seq.skip)
-    //|> Seq.take 100000000
+    |> (1 |> Seq.skip) // skip csv header line
  
-type validationRecord = {Number:int; Data:byte []}
+type DataRecord = {Number:int; Data:byte []}
 
 let convertStringToRecord (lineRecord: string) =
     let values = lineRecord.Split(',')
     let number = values |> Seq.head |> Int32.Parse
     let data =  values |> Seq.skip 1 |> Seq.map Byte.Parse |> Seq.toArray
     {Number=number; Data = data}
-//parseCsv trainingSampleCsvPath |>Seq.skip 17 |> Seq.map convertStringToRecord |>
 
 
 type ClassificationData = IDictionary<int,byte [][]>
 
-let createProcessingDataSet (records:validationRecord seq) : ClassificationData =
-    let getData (record:validationRecord) =
+let createProcessingDataSet (records: DataRecord seq) : ClassificationData =
+    let getData (record: DataRecord) =
         record.Data
     records
     |> Seq.groupBy (fun (n) -> n.Number)
@@ -45,24 +43,34 @@ let computeDataDistance (x:byte []) (y:byte []) =
     |> Seq.sum
     |> System.Math.Sqrt
 
-let classifier (dataset:ClassificationData ) (record: validationRecord) =
-    dataset
-    |> Seq.map (fun (kvp) -> (kvp.Key, kvp.Value))
-    |> Seq.map (fun (k,values) ->
-        let averagedDistance = values |> Seq.map (fun v -> computeDataDistance v record.Data) |> Seq.average
-        (k, averagedDistance)
-    )
+type NumberDistance = {Number: int; Distance: float}
+type ClassifierResult = {Prediction: int; Distances: NumberDistance []}
+
+let classifier (dataset:ClassificationData) (record: DataRecord) =
+    let averages =
+        dataset
+        |> Seq.map (fun (kvp) -> (kvp.Key, kvp.Value)) // wish f# had a way to deconstruct KeyValuePair<K,V>
+        |> Seq.map (fun (k,values) ->
+            let averagedDistance = 
+                values 
+                |> Seq.map (fun v -> computeDataDistance v record.Data)
+                |> Seq.average
+            (k, averagedDistance)
+        )
+        |> Seq.sortBy (fun (k,d) -> d)
+        |> Seq.map (fun (k,d) -> {Number = k; Distance = d})
+    {Prediction = averages |> Seq.head |> (fun nd -> nd.Number); Distances = Seq.toArray averages}
 
 let trainingDataset =
-    parseCsv trainingSampleCsvPath
+    getCsvLines trainingSampleCsvPath
     |> Seq.map convertStringToRecord
     |> createProcessingDataSet
-trainingDataset.Keys |> Seq.sort |> Seq.map  (fun c -> Console.WriteLine(c))
-let oneRecord = { Data= trainingDataset.[5].[4]; Number= -11}
 
-classifier trainingDataset oneRecord |> Seq.map (fun c -> Console.WriteLine(c))
+let oneRecord = { Data= trainingDataset.[1].[100]; Number= -11}
 
-let records = parseCsv trainingSampleCsvPath
+//> classifier trainingDataset oneRecord
+
+let records = getCsvLines trainingSampleCsvPath
                 |> Seq.map convertStringToRecord
                 |> Seq.map (fun r -> r.Number)
                 |> Seq.distinct
@@ -97,4 +105,15 @@ let displayData (data: byte[]) (n: int) =
 displayData [|(0|> byte)..(255|> byte)|] 10
 displayData oneRecord.Data 28
 
-trainingDataset.[5] |> Seq.take 10 |> Seq.map (fun d -> displayData d 28)
+trainingDataset.[9] |> Seq.take 10 |> Seq.map (fun d -> displayData d 28)
+
+// visualise distance in a naive way
+let showAbsoluteDistance (x: byte[]) (y: byte[]) =
+    let distance = 
+        Seq.zip x y
+        |> Seq.map (fun (a, b) -> (a|>int) - (b|>int))
+        |> Seq.map Math.Abs
+        |> Seq.map byte
+        |> Seq.toArray
+    displayData distance 28
+//> showAbsoluteDistance trainingDataset.[9].[0] trainingDataset.[9].[50]
