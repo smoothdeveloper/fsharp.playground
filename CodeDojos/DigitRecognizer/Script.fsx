@@ -46,14 +46,14 @@ let computeDataDistance (x:byte []) (y:byte []) =
 type NumberDistance = {Number: int; Distance: float}
 type ClassifierResult = {Prediction: int; Distances: NumberDistance []}
 
-let classifier (dataset:ClassificationData) (record: DataRecord) =
+let classifier (dataset:ClassificationData) (data: byte []) =
     let averages =
         dataset
         |> Seq.map (fun (kvp) -> (kvp.Key, kvp.Value)) // wish f# had a way to deconstruct KeyValuePair<K,V>
         |> Seq.map (fun (k,values) ->
             let averagedDistance = 
                 values 
-                |> Seq.map (fun v -> computeDataDistance v record.Data)
+                |> Seq.map (fun v -> computeDataDistance v data)
                 |> Seq.average
             (k, averagedDistance)
         )
@@ -61,10 +61,12 @@ let classifier (dataset:ClassificationData) (record: DataRecord) =
         |> Seq.map (fun (k,d) -> {Number = k; Distance = d})
     {Prediction = averages |> Seq.head |> (fun nd -> nd.Number); Distances = Seq.toArray averages}
 
-let trainingDataset =
+let allRecords =
     getCsvLines trainingSampleCsvPath
     |> Seq.map convertStringToRecord
-    |> createProcessingDataSet
+    |> Seq.toArray
+
+let trainingDataset = createProcessingDataSet allRecords
 
 let oneRecord = { Data= trainingDataset.[1].[100]; Number= -11}
 
@@ -80,6 +82,19 @@ let d1 = [|1 |> byte; 2 |> byte|]
 let d2 = [|0 |> byte; 5 |> byte|]
 computeDataDistance d1  d2
 *) //
+
+let rateClassifier (data: DataRecord seq) (predictor: (byte[] -> int)) (dataset: ClassificationData) =
+    let count = Seq.length data |> float
+    let predictions = 
+        data
+        |> Seq.map (fun d -> 
+            let prediction = predictor d.Data
+            (d.Number = prediction, prediction)
+        )
+    let correctAnswers = predictions |> Seq.filter (fun (isMatch, _) -> isMatch) |> Seq.length |> float
+    correctAnswers / count
+
+rateClassifier (allRecords |> Seq.take 100) (fun r -> (classifier trainingDataset r).Prediction) trainingDataset
 
 open DigitRecognizer
 DigitRecognizer.batch [|1..100|] 10
