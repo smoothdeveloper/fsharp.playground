@@ -12,7 +12,7 @@ let storageFolder = @"C:\home\work\codedojos\Dojo-Digits-Recognizer\Dojo"
  
 let trainingSampleCsvPath = Path.Combine(storageFolder, "trainingsample.csv")
 let validationCsvPath = Path.Combine(storageFolder, "validationsample.csv")
- 
+
 let getCsvLines (filePath: string) =
     File.ReadLines(filePath)
     |> (1 |> Seq.skip) // skip csv header line
@@ -24,7 +24,6 @@ let convertStringToRecord (lineRecord: string) =
     let number = values |> Seq.head |> Int32.Parse
     let data =  values |> Seq.skip 1 |> Seq.map Byte.Parse |> Seq.toArray
     {Number=number; Data = data}
-
 
 type ClassificationData = IDictionary<int,byte [][]>
 
@@ -67,12 +66,13 @@ let classifier1 (dataset:ClassificationData) (data: byte []) =
     {Prediction = averages |> Seq.head |> (fun nd -> nd.Number); Distances = Seq.toArray averages}
 
 
-let allRecords =
-    getCsvLines trainingSampleCsvPath
+let readAllRecords file =
+    getCsvLines file
     |> Seq.map convertStringToRecord
     |> Seq.toArray
 
-let trainingDataset = createProcessingDataSet allRecords
+let trainingDataset = createProcessingDataSet (readAllRecords trainingSampleCsvPath)
+//let validationDataset = createProcessingDataSet (readAllRecords validationCsvPath)
 
 let averageData (data: byte[] seq) =
     let count = Seq.length data
@@ -105,13 +105,26 @@ let classifier2 (data: byte[]) =
         |> Seq.sortBy (fun (k,d) -> d)
     {Prediction = (predictions |> Seq.head |> fst) ; Distances = predictions |> Seq.map (fun (k,d) -> {Number = k; Distance = d}) |> Seq.toArray }
 
-let oneRecord = { Data= trainingDataset.[1].[100]; Number= -11}
+let classifier3 (dataset:ClassificationData) (data: byte[]) =
+    (*
+    this classifier works by computing distance with each sample from training set and
+    retaining the shortest one as the match
+    *)
+    let shortestDistances =
+        dataset
+        |> Seq.map (fun (kvp) -> (kvp.Key, kvp.Value)) // wish f# had a way to deconstruct KeyValuePair<K,V>
+        |> Seq.map (fun (k,values) ->
+            let minimumDistance = 
+                values 
+                |> Seq.map (fun v -> computeDataDistance v data)
+                |> Seq.min
+            (k, minimumDistance)
+        )
+        |> Seq.sortBy (fun (k,d) -> d)
+        |> Seq.map (fun (k,d) -> {Number = k; Distance = d})
+    {Prediction = shortestDistances |> Seq.head |> (fun nd -> nd.Number); Distances = Seq.toArray shortestDistances}
 
-let records = getCsvLines trainingSampleCsvPath
-                |> Seq.map convertStringToRecord
-                |> Seq.map (fun r -> r.Number)
-                |> Seq.distinct
-                |> Seq.iter (fun v -> Console.WriteLine(v))
+let oneRecord = { Data= trainingDataset.[1].[100]; Number= -11}
 
 let rateClassifier (data: DataRecord seq) (predictor: (byte[] -> int)) (dataset: ClassificationData) =
     let count = Seq.length data |> float
@@ -131,8 +144,11 @@ let rateClassifier (data: DataRecord seq) (predictor: (byte[] -> int)) (dataset:
     let correctAnswers = predictions |> Seq.filter (fun (isMatch, _) -> isMatch) |> Seq.length |> float
     correctAnswers / count
 
-rateClassifier (allRecords |> Array.toSeq) (fun r -> (classifier1 trainingDataset r).Prediction) trainingDataset
-rateClassifier (allRecords |> Array.toSeq) (fun r -> (classifier2 r).Prediction) trainingDataset
+rateClassifier (readAllRecords validationCsvPath |> Array.toSeq) (fun r -> (classifier1 trainingDataset r).Prediction) trainingDataset
+
+rateClassifier (readAllRecords validationCsvPath |> Array.toSeq) (fun r -> (classifier2 r).Prediction) trainingDataset
+
+rateClassifier (readAllRecords validationCsvPath |> Array.toSeq) (fun r -> (classifier3 trainingDataset r).Prediction) trainingDataset
 
 open DigitRecognizer
 DigitRecognizer.batch [|1..100|] 10
