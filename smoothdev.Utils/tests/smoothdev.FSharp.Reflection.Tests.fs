@@ -21,3 +21,10 @@ let ``can get name``() =
   let actual = reflect<Tags>.AllCases |> Seq.map (fun c -> reflect<Tags>.GetName(c.Value))
   let expected = [ "A"; "B"; "C"; "D" ]
   expected |> should equal actual
+
+[<Test>]
+let ``try get name`` () = 
+  let caseA = reflect<Tags>.TryGet "a" true
+  assert (caseA = Some A)
+  let caseA = reflect<Tags>.TryGet "a" false
+  assert (caseA = None)
