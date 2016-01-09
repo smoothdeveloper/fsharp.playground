@@ -1,0 +1,6 @@
+source https://nuget.org/api/v2
+redirects: on
+nuget FSharp.Core
+nuget FsUnit
+nuget NUnit
+nuget NUnit.Runners
