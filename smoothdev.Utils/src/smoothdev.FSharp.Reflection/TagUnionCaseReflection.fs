@@ -1,7 +1,7 @@
 namespace smoothdev.FSharp.Reflection
 open System
 open System.Collections.Generic
-open Microsoft.FSharp.Reflection
+open FSharp.Reflection
 
 type TagUnionCaseReflection<'T> when 'T : equality =
   { CaseInfo: UnionCaseInfo
@@ -9,18 +9,17 @@ type TagUnionCaseReflection<'T> when 'T : equality =
   }
   with
     static member unionCasesLookup =
-      let dic = new Dictionary<_,_>()
       FSharpType.GetUnionCases(typeof<'T>)
-      |> Seq.map (fun t -> (TagUnionCaseReflection<'T>.construct t, TagUnionCaseReflection<'T>.makeCase t))
-      |> Seq.iter dic.Add
-      dic
+      |> Seq.map TagUnionCaseReflection<'T>.makeCase
+      |> Seq.map (fun c -> c.Value, c)
+      |> dict
 
     // will crash if 'T contains members which aren't only tags
-    static member construct (caseInfo: UnionCaseInfo)    = FSharpValue.MakeUnion(caseInfo, [||]) :?> 'T
-    static member makeCase (caseInfo: UnionCaseInfo)     = {CaseInfo = caseInfo; Value = TagUnionCaseReflection<'T>.construct caseInfo}
-    static member GetName (tag: 'T)                      = TagUnionCaseReflection.unionCasesLookup.[tag].CaseInfo.Name
-    static member AllCases                               = TagUnionCaseReflection<'T>.unionCasesLookup.Values :> seq<_>
-    static member AllValues                              = TagUnionCaseReflection<'T>.unionCasesLookup.Values |> Seq.map (fun v -> v.Value)
+    static member internal construct (caseInfo: UnionCaseInfo) = FSharpValue.MakeUnion(caseInfo, [||]) :?> 'T
+    static member internal makeCase (caseInfo: UnionCaseInfo)  = {CaseInfo = caseInfo; Value = TagUnionCaseReflection<'T>.construct caseInfo}
+    static member GetName (tag: 'T)                            = TagUnionCaseReflection.unionCasesLookup.[tag].CaseInfo.Name
+    static member AllCases                                     = TagUnionCaseReflection<'T>.unionCasesLookup.Values :> seq<_>
+    static member AllValues                                    = TagUnionCaseReflection<'T>.unionCasesLookup.Values |> Seq.map (fun v -> v.Value)
     static member TryGet (name: string) (ignoreCase) =  
       let comparison =
         if ignoreCase then StringComparison.CurrentCultureIgnoreCase
