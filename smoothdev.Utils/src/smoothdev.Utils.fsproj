@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="smoothdev.FSharp.Reflection\TagUnionCaseReflection.fs" />
     <Compile Include="smoothdev.FSharp.Reflection\Option.fs" />
+    <Compile Include="smoothdev.Data.SqlClient\ExtendedProperties.fs" />
     <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>
@@ -54,6 +55,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.

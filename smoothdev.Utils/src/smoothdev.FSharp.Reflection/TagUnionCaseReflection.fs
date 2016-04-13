@@ -1,7 +1,7 @@
 namespace smoothdev.FSharp.Reflection
 open System
 open System.Collections.Generic
-open FSharp.Reflection
+open Microsoft.FSharp.Reflection
 
 type TagUnionCaseReflection<'T> when 'T : equality =
   { CaseInfo: UnionCaseInfo
