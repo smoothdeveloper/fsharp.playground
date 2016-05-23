@@ -1,77 +1,27 @@
+#load "ExpressionDsl.fs"
 open System
+open System.Linq
+open ExpressionDsl
 
-type Expression =
-| ColumnName of string
-| Constant   of LiteralValue
-and LiteralValue =
-| StringValue   of string
-| IntValue      of int
-| LongValue     of int64
-| DoubleValue   of float
-| SingleValue   of single
-| DecimalValue  of decimal
-| DateTimeValue of DateTime
-| BooleanValue  of bool
-
-type LiteralValueBuilderTypeClass private () =
-  [<DefaultValue>]
-  static val mutable private _resolve : LiteralValueBuilderTypeClass
-  static member inline internal invoke x =
-    let inline call (_ : ^a, x : ^b) = ((^a or ^b) : (static member makeLiteralValue : ^b -> LiteralValue) x)
-    call (LiteralValueBuilderTypeClass._resolve, x)
-  
-  static member inline makeLiteralValue (x : string)   = StringValue x
-  static member inline makeLiteralValue (x : int)      = IntValue x
-  static member inline makeLiteralValue (x : DateTime) = DateTimeValue x
-  static member inline makeLiteralValue (x : decimal)  = DecimalValue x
-  static member inline makeLiteralValue (x : bool)     = BooleanValue x
-
-
-type WildCardParts =
-| Literal of string
-| WildcardChar
-| WildcardString
-
-type LeftAndRight<'t> = { left: 't; right: 't }
-
-type BooleanExpression =
-| LessOrEqual of Operands
-| LessThan    of Operands
-| MoreThan    of Operands
-| Equal       of Operands
-| Like        of Expression * WildCardParts seq
-| BeginsWith  of Expression * string
-| EndsWith    of Expression * string
-| Contains    of Expression * string
-| Compound    of LogicOperator
-| Not         of BooleanExpression
-and LogicOperator =
-| And of BooleanExpressions
-| Or  of BooleanExpressions
-
-
-and Operands = LeftAndRight<Expression>
-and BooleanExpressions = LeftAndRight<BooleanExpression>
-
-#nowarn "86" // operators
-// those are abusive for now, will decide later how they'll look like
-let (<=) a b = LessOrEqual { left = a; right = b }
-let (>) a b = MoreThan { left = a; right = b }
-let (=) a b = Equal { left = a; right = b }
-let (!) a = Not a
-let (&&) a b = Compound (And { left = a; right = b })
-let (||) a b = Compound (Or  { left = a; right = b })
-
-type LikeExpressionPart =
-| Wildcard
-| Char of char
+//module DataViewExpressionDsl =
+let (.<=.) a b = LessOrEqual { left = a; right = b }
+let (.>.) a b = MoreThan { left = a; right = b }
+let (.=.) a b = Equal { left = a; right = b }
+let (!.) a = Not a
+let (.&&.) a b = Compound (And { left = a; right = b })
+let (.||.) a b = Compound (Or  { left = a; right = b })
 
 let rec printValue value =
   match value with
   | StringValue   value -> value.Replace("'", "''") |> sprintf "'%s''"
   | DateTimeValue value -> string value             |> sprintf "'%s'"
   | IntValue      value -> value                    |> sprintf "%i"
+  | LongValue     value -> value                    |> sprintf "%i"
+  | SingleValue   value -> value                    |> sprintf "%f"
+  | DoubleValue   value -> value                    |> sprintf "%f"
   | BooleanValue  value -> value                    |> sprintf "%b"
+  | DecimalValue  value -> value                    |> sprintf "%M"
+
 and printExpression expr =
   match expr with
   | ColumnName name -> name
@@ -138,18 +88,77 @@ and print (expr: obj) =
   | :? LiteralValue        as e    -> printValue e
   | :? (WildCardParts seq) as like -> printWildCardParts like
 
-let C name = ColumnName name
-let inline V x = Constant (LiteralValueBuilderTypeClass.invoke x)
-
 let expr =
-  C "timestamp" <= V DateTime.Now
-  && C "timestamp" > V (DateTime.Now.AddDays(-1.))
-  && (Like (C "foo", [WildcardString ; Literal "foo"]))
-  && (
+  C "timestamp" .<=. V DateTime.Now
+  .&&. (C "timestamp" .>. V (DateTime.Now.AddDays(-1.)))
+  .&&. (Like (C "foo", [WildcardString ; Literal "foo"]))
+  .&&. (
     (BeginsWith (C "baz", "qux"))
-    || (BeginsWith (C "baz", "*"))
+    .||. (BeginsWith (C "baz", "*"))
   )
-  && (! (C "foo" > V 1))
-  || C "t" = V true
+  .&&. (!. (C "foo" .>. V 1))
+  .||. (C "t" .=. V true)
 
 print expr
+#load "../../paket-files/include-scripts/net46/include.fscheck.fsx"
+open System
+open System.Linq
+open FsCheck.Arb
+open System.Data
+open FsCheck
+
+let generatedt columns rows =
+  let table = new DataTable()
+  
+  let arbStringGen =
+      Arb.from<string>.Generator
+  let arbStringColumnGen =
+    arbStringGen
+          .Where(fun s -> not (isNull s))
+          .Where(fun s -> table.Columns.Contains s |> not)
+          .Where(fun s -> s.Length > 0)
+  let getSample gen = Gen.sample 10000 1 gen |> Seq.head
+  let validTypesAndArb = 
+    [|
+    typeof<string>      , fun () -> box <| getSample Arb.from<string>.Generator
+    typeof<int>         , fun () -> box <| getSample Arb.from<int>.Generator
+    (*typeof<float>
+    typeof<float32>
+    typeof<int>
+    typeof<int64>
+    typeof<decimal>
+    typeof<bool>
+    typeof<DateTime>*)
+    |]
+    |> dict
+  let validTypes = validTypesAndArb.Keys
+  gen {
+    
+    for i in [1..columns] do
+      let! columnType = Gen.elements validTypes
+      let! columnName =
+        Arb.from<string>
+          .Generator
+          .Where(fun s -> not (isNull s))
+          .Where(fun s -> table.Columns.Contains s |> not)
+          .Where(fun s -> s.Length > 0)
+      table.Columns.Add(columnName, columnType) |> ignore
+    for i in [1..rows] do
+      [|
+      for c in table.Columns.Cast<DataColumn>() do
+        yield validTypesAndArb.[c.DataType] ()
+      |]
+      |> table.Rows.Add
+      |> ignore
+    return table
+  }
+
+
+let table = generatedt 30 30 |> Gen.sample 1 1 |> Seq.head
+
+for c in table.Columns do
+  printfn "%s %s" c.ColumnName c.DataType.Name
+for r in table.Rows do
+  printfn "%A" r.ItemArray
+
+let t = generatedt 100
