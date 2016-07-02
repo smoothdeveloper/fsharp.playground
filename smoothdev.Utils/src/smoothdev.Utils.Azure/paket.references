@@ -1,0 +1,9 @@
+FSharp.Core
+FSharp.Data
+FSharp.Management
+Hopac
+MBrace.Azure.Management
+Microsoft.IdentityModel.Clients.ActiveDirectory
+Microsoft.Azure.Management.Compute
+Microsoft.Azure.Management.ResourceManager
+Microsoft.Azure.Management.Sql
