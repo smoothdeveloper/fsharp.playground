@@ -3,6 +3,8 @@ redirects: on
 framework: >= net40
 
 nuget FSharp.Core
+nuget FSharp.Data
+nuget FSharp.Management
 nuget FsUnit
 nuget Hopac
 nuget NUnit
@@ -10,7 +12,7 @@ nuget NUnit.Runners
 nuget FSharp.Compiler.Service
 nuget QuickGraph
 nuget MBrace.Azure.Management
-nuget Microsoft.Azure.Management.Compute
-nuget Microsoft.Azure.Management.ResourceManager
-nuget Microsoft.Azure.Management.Sql
+nuget Microsoft.Azure.Management.Compute prerelease
+nuget Microsoft.Azure.Management.ResourceManager prerelease
+nuget Microsoft.Azure.Management.Sql prerelease
 nuget Microsoft.IdentityModel.Clients.ActiveDirectory
